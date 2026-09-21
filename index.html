@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Strava Stats</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0F1412">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Strava Stats">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png" type="image/png">
+<style>
+  :root {
+    --bg: #0F1412;
+    --surface: #161C19;
+    --surface-2: #1F2621;
+    --line: #2B332D;
+    --text: #DEE7E0;
+    --text-dim: #8A968E;
+    --outdoor: #9FE870;
+    --outdoor-dim: #4E6B3A;
+    --trainer: #E8A33D;
+    --trainer-dim: #7A5A2A;
+    --danger: #E8703D;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono {
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0 16px 48px;
+  }
+  header.top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(15,20,18,0.92);
+    backdrop-filter: blur(6px);
+    padding: 16px 16px 10px;
+    margin: 0 -16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .logo-mark {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+  h1 {
+    font-size: 17px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    margin: 0;
+    white-space: nowrap;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 12.5px;
+    margin-top: 2px;
+  }
+  button.icon-btn {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 7px 11px;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  button.icon-btn:active { transform: translateY(1px); }
+
+  .segmented {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 3px;
+    margin-top: 12px;
+    gap: 3px;
+  }
+  .segmented button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    padding: 8px 4px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .segmented button.active { background: var(--surface-2); color: var(--text); }
+  .segmented button[data-cat="outdoor"].active { color: var(--outdoor); }
+  .segmented button[data-cat="trainer"].active { color: var(--trainer); }
+
+  .hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .hero-main {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 18px 16px;
+  }
+  .hero-main .label { font-size: 12.5px; color: var(--text-dim); }
+  .hero-main .value {
+    font-size: 44px;
+    line-height: 1.05;
+    margin-top: 4px;
+    font-weight: 600;
+  }
+  .hero-main .value span.unit { font-size: 18px; color: var(--text-dim); margin-left: 4px; }
+  .split-bar {
+    display: flex;
+    height: 8px;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-top: 12px;
+    background: var(--surface-2);
+  }
+  .split-bar .o { background: var(--outdoor); }
+  .split-bar .t { background: var(--trainer); }
+  .split-legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .split-legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+  .split-legend .o-dot { background: var(--outdoor); }
+  .split-legend .t-dot { background: var(--trainer); }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 13px 14px;
+  }
+  .stat-card .label { font-size: 11.5px; color: var(--text-dim); }
+  .stat-card .value { font-size: 21px; margin-top: 3px; font-weight: 600; }
+  .stat-card .value .unit { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+
+  .empty {
+    margin-top: 40px;
+    padding: 30px 20px;
+    text-align: center;
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .empty strong { color: var(--text); }
+
+  .upload-zone {
+    margin-top: 18px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .upload-zone .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .upload-zone .txt { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+  .upload-zone .txt strong { color: var(--text); }
+  .icu-fields { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .icu-field label { display: block; font-size: 11.5px; color: var(--text-dim); margin-bottom: 3px; }
+  .icu-field input {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    padding: 8px 10px;
+    font-family: inherit;
+  }
+  input[type="file"].sr-input {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+  label.upload-btn {
+    background: var(--outdoor);
+    color: #0F1412;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 9px 14px;
+    border-radius: 9px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .paste-toggle {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-decoration: underline;
+    cursor: pointer;
+    display: inline-block;
+  }
+  .paste-area { display: none; margin-top: 10px; }
+  .paste-area.show { display: block; }
+  .paste-area textarea {
+    width: 100%;
+    min-height: 110px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: ui-monospace, monospace;
+    font-size: 11.5px;
+    padding: 8px;
+    resize: vertical;
+  }
+  .paste-area button {
+    margin-top: 8px;
+    background: var(--outdoor);
+    color: #0F1412;
+    border: none;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 8px 13px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .toast {
+    margin-top: 10px;
+    font-size: 12.5px;
+    padding: 9px 11px;
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--text);
+    display: none;
+  }
+  .toast.show { display: block; }
+  .toast.err { color: var(--danger); }
+
+  details.year {
+    margin-top: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  details.year > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  details.year > summary::-webkit-details-marker { display: none; }
+  .year-name { font-size: 16px; font-weight: 650; }
+  .year-total { font-size: 13px; color: var(--text-dim); }
+  .year-total b { color: var(--text); font-weight: 650; }
+  .chevron { color: var(--text-dim); transition: transform 0.15s ease; font-size: 12px; }
+  details[open] .chevron { transform: rotate(90deg); }
+
+  details.month-row {
+    border-top: 1px solid var(--line);
+  }
+  details.month-row > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 10px 16px;
+  }
+  details.month-row > summary::-webkit-details-marker { display: none; }
+  .month-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .month-name { font-size: 13.5px; font-weight: 600; }
+  .month-name .chevron-sm { color: var(--text-dim); font-size: 11px; margin-left: 5px; }
+  details.month-row[open] .chevron-sm { display: inline-block; transform: rotate(90deg); }
+  .month-km { font-size: 13.5px; }
+  .month-km .unit { color: var(--text-dim); font-size: 11.5px; }
+  .month-bar {
+    display: flex;
+    height: 6px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+  .month-bar .o { background: var(--outdoor); }
+  .month-bar .t { background: var(--trainer); }
+  .month-details {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .month-details div b { display: block; color: var(--text); font-size: 13px; font-weight: 600; }
+
+  .ride-list { padding: 0 16px 12px; }
+  .ride-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 0;
+    border-top: 1px solid var(--line);
+    cursor: pointer;
+    gap: 10px;
+  }
+  .ride-row { text-decoration: none; color: inherit; }
+  .ride-row:active { background: var(--surface-2); }
+  .ride-row .ride-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .ride-row .cat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .ride-row .cat-dot.outdoor { background: var(--outdoor); }
+  .ride-row .cat-dot.trainer { background: var(--trainer); }
+  .ride-row .ride-name { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ride-row .ride-date { font-size: 11px; color: var(--text-dim); }
+  .ride-row .ride-stats { font-size: 11.5px; color: var(--text-dim); text-align: right; flex-shrink: 0; }
+  .ride-row .ride-stats b { color: var(--text); font-weight: 600; }
+  .ride-row .arrow { color: var(--text-dim); font-size: 13px; flex-shrink: 0; }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .detail-cell {
+    background: var(--surface-2);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .detail-cell .label { font-size: 11px; color: var(--text-dim); }
+  .detail-cell .value { font-size: 17px; font-weight: 600; margin-top: 2px; }
+  .detail-cell .value .unit { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+  .detail-badge {
+    display: inline-block;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 20px;
+    margin-top: 6px;
+  }
+  .detail-badge.outdoor { background: rgba(159,232,112,0.15); color: var(--outdoor); }
+  .detail-badge.trainer { background: rgba(232,163,61,0.15); color: var(--trainer); }
+  .map-note {
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .track-map {
+    margin-top: 14px;
+    background: var(--surface-2);
+    border-radius: 10px;
+    padding: 8px;
+  }
+  .track-map svg { display: block; width: 100%; height: auto; }
+  .gpx-add {
+    margin-top: 14px;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+  }
+  .gpx-add .lead { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; }
+  .gpx-add-btn {
+    display: inline-block;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .gpx-paste-toggle {
+    display: inline-block;
+    margin-left: 10px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .gpx-paste-area { display: none; margin-top: 10px; }
+  .gpx-paste-area.show { display: block; }
+  .gpx-paste-area textarea {
+    width: 100%;
+    min-height: 90px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    padding: 8px;
+    resize: vertical;
+  }
+  .gpx-paste-area button {
+    margin-top: 8px;
+    background: var(--outdoor);
+    color: #0F1412;
+    border: none;
+    font-weight: 700;
+    font-size: 12.5px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .chart-card {
+    margin-top: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+  }
+  .chart-card h3 {
+    font-size: 14.5px;
+    margin: 0 0 12px;
+    font-weight: 650;
+  }
+  .chart-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .chip {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    border-radius: 20px;
+    padding: 5px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .chip.active { color: var(--text); border-color: var(--text-dim); }
+  .chart-metric {
+    display: flex;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 3px;
+    margin-bottom: 10px;
+    gap: 3px;
+  }
+  .chart-metric button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    padding: 6px 4px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .chart-metric button.active { background: var(--surface-2); color: var(--text); }
+  .chart-svg-wrap svg { display: block; width: 100%; height: auto; }
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
+  .chart-legend .dot { width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+  .chart-legend b { color: var(--text); }
+
+  .settings {
+    margin-top: 18px;
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+  }
+  .settings summary {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    cursor: pointer;
+    list-style: none;
+  }
+  .settings summary::-webkit-details-marker { display: none; }
+  .settings-body { margin-top: 12px; }
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 13px;
+    border-bottom: 1px solid var(--line);
+  }
+  select {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 5px 8px;
+    font-size: 12.5px;
+    font-family: inherit;
+  }
+  .danger-btn {
+    background: transparent;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 12.5px;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+
+  /* mapping modal */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 50;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px 16px 0 0;
+    max-width: 640px;
+    width: 100%;
+    max-height: 86vh;
+    overflow-y: auto;
+    padding: 18px 16px 24px;
+  }
+  .modal h2 { font-size: 16px; margin: 0 0 4px; }
+  .modal p.hint { font-size: 12.5px; color: var(--text-dim); margin: 0 0 14px; line-height: 1.5; }
+  .map-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; gap: 10px;
+  }
+  .map-row .fname { color: var(--text-dim); flex: 1; }
+  .map-row select { flex: 1.1; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+  .modal-actions button {
+    flex: 1; padding: 11px; border-radius: 10px; border: none;
+    font-weight: 700; font-size: 13.5px; cursor: pointer; font-family: inherit;
+  }
+  .btn-primary { background: var(--outdoor); color: #0F1412; }
+  .btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--line) !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="title-row">
+      <div class="brand">
+        <svg class="logo-mark" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="0.5" y="0.5" width="31" height="31" rx="9" fill="#1F2621" stroke="#2B332D"/>
+          <polyline points="6,22 12,22 15,12 19,17 23,8 26,8" fill="none" stroke="#9FE870" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="26" cy="8" r="2.1" fill="#9FE870"/>
+        </svg>
+        <div>
+          <h1>My Strava Stats</h1>
+          <div class="subtitle" id="subtitleLine">Zatiaľ žiadne dáta</div>
+        </div>
+      </div>
+      <button class="icon-btn" id="uploadTopBtn">Nahrať export</button>
+    </div>
+    <div class="segmented" id="catFilter">
+      <button data-cat="all" class="active">Spolu</button>
+      <button data-cat="outdoor">Outdoor</button>
+      <button data-cat="trainer">Indoor</button>
+    </div>
+  </header>
+
+  <div id="content"></div>
+
+  <div class="upload-zone">
+    <div class="row">
+      <div class="txt">
+        <strong>Pridať nové jazdy.</strong><br>
+        Nahraj <code>activities.csv</code> zo Strava exportu. Nové aktivity sa pridajú, staré sa neduplikujú.
+      </div>
+      <label class="upload-btn" for="fileInput">Nahrať</label>
+    </div>
+    <input type="file" class="sr-input" id="fileInput" accept=".csv,text/csv">
+    <span class="paste-toggle" id="pasteToggle">Nefunguje nahrávanie? Vlož obsah CSV ručne ›</span>
+    <div class="paste-area" id="pasteArea">
+      <textarea id="pasteText" placeholder="Otvor activities.csv v poznámkovom bloku alebo Súboroch, skopíruj celý obsah a vlož ho sem."></textarea>
+      <button id="pasteProcess">Spracovať vložený text</button>
+    </div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <div class="upload-zone" id="icuCard">
+    <div class="row">
+      <div class="txt">
+        <strong>Automatická synchronizácia (intervals.icu).</strong><br>
+        Zadarmo, bez Strava predplatného. Pripoj si Strava/Zwift/Garmin ku intervals.icu účtu, zadaj sem svoje údaje a appka si vie sama dotiahnuť nové jazdy.
+      </div>
+    </div>
+    <div class="icu-fields">
+      <div class="icu-field">
+        <label>Athlete ID</label>
+        <input type="text" id="icuAthleteId" placeholder="napr. i123456">
+      </div>
+      <div class="icu-field">
+        <label>API kľúč</label>
+        <input type="password" id="icuApiKey" placeholder="z intervals.icu → Settings → Developer Settings">
+      </div>
+    </div>
+    <button class="upload-btn" id="icuSyncBtn" style="margin-top:10px;">Synchronizovať teraz</button>
+    <div class="toast" id="icuToast"></div>
+  </div>
+
+  <details class="settings">
+    <summary>Nastavenia a jednotky ›</summary>
+    <div class="settings-body">
+      <div class="setting-row">
+        <span>Vzdialenosť v CSV</span>
+        <select id="distUnit">
+          <option value="auto">Automaticky</option>
+          <option value="m">Metre</option>
+          <option value="km">Kilometre</option>
+          <option value="mi">Míle</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <span>Prevýšenie v CSV</span>
+        <select id="elevUnit">
+          <option value="m">Metre</option>
+          <option value="ft">Stopy</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <span>Zahrnúť aj iné aktivity (nielen bicykel)</span>
+        <select id="onlyBike">
+          <option value="yes">Nie, len bicykel</option>
+          <option value="no">Áno, všetko</option>
+        </select>
+      </div>
+      <button class="danger-btn" id="resetBtn">Vymazať všetky uložené dáta</button>
+    </div>
+  </details>
+
+</div>
+
+<div class="modal-backdrop" id="rideModal">
+  <div class="modal" id="rideModalBody"></div>
+</div>
+
+<div class="modal-backdrop" id="mapModal">
+  <div class="modal">
+    <h2>Priradenie stĺpcov</h2>
+    <p class="hint">Skontroluj, či appka správne rozpoznala stĺpce z tvojho CSV súboru. Ak niečo nesedí, priraď to ručne.</p>
+    <div id="mapRows"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="mapCancel">Zrušiť</button>
+      <button class="btn-primary" id="mapConfirm">Spracovať dáta</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "cycling_dashboard_activities_v1";
+  var SETTINGS_KEY = "cycling_dashboard_settings_v1";
+
+  var FIELD_DEFS = [
+    { key: "id",       label: "ID aktivity",       required: true,  keywords: ["activity id", "id"] },
+    { key: "date",     label: "Dátum",              required: true,  keywords: ["activity date", "start_date_local", "start date"] },
+    { key: "name",     label: "Názov",              required: false, keywords: ["activity name", "name"] },
+    { key: "type",     label: "Typ aktivity",       required: true,  keywords: ["activity type", "type"] },
+    { key: "trainer",  label: "Príznak trenažéra",  required: false, keywords: ["trainer"] },
+    { key: "distance", label: "Vzdialenosť",        required: true,  keywords: ["distance"] },
+    { key: "movingtime", label: "Čas v pohybe (s)", required: false, keywords: ["moving time", "moving_time"] },
+    { key: "elev",     label: "Prevýšenie",         required: false, keywords: ["elevation gain", "total_elevation_gain", "elevation_gain"] },
+    { key: "avghr",    label: "Priem. tep",         required: false, keywords: ["average heart rate", "average_heartrate", "icu_average_heartrate"] },
+    { key: "maxhr",    label: "Max. tep",           required: false, keywords: ["max heart rate", "max_heartrate"] },
+    { key: "avgwatts", label: "Priem. výkon (W)",   required: false, keywords: ["average watts", "average_watts", "icu_average_watts"] },
+    { key: "maxwatts", label: "Max. výkon (W)",     required: false, keywords: ["max watts", "max_watts"] },
+    { key: "cadence",  label: "Priem. kadencia",    required: false, keywords: ["average cadence", "average_cadence", "icu_average_cadence"] }
+  ];
+
+  var MONTHS_SK = ["Január","Február","Marec","Apríl","Máj","Jún","Júl","August","September","Október","November","December"];
+
+  var state = {
+    activities: loadActivities(),
+    settings: loadSettings(),
+    filter: "all",
+    pendingRows: null,
+    pendingHeaders: null,
+    pendingMapping: null,
+    pendingSource: "manual",
+    chartMetric: "all",
+    chartYears: null
+  };
+
+  var YEAR_PALETTE = ["#9FE870","#E8A33D","#6EC1E4","#E46EA0","#C9A9E8","#E4C36E","#7AD9C4","#E88989"];
+
+  function loadActivities() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) { return {}; }
+  }
+  function saveActivities() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.activities)); } catch (e) {}
+  }
+  function loadSettings() {
+    var defaults = { distUnit: "auto", elevUnit: "m", onlyBike: "yes", icuAthleteId: "", icuApiKey: "", icuMappingConfirmed: false, icuMappingNames: null };
+    try {
+      var raw = localStorage.getItem(SETTINGS_KEY);
+      var parsed = raw ? JSON.parse(raw) : {};
+      for (var k in defaults) { if (!(k in parsed)) parsed[k] = defaults[k]; }
+      return parsed;
+    } catch (e) { return defaults; }
+  }
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch (e) {}
+  }
+
+  // ---------- CSV parsing (RFC4180-ish) ----------
+  function parseCSV(text) {
+    var rows = [];
+    var row = [];
+    var field = "";
+    var inQuotes = false;
+    var i = 0;
+    var len = text.length;
+    while (i < len) {
+      var c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i+1] === '"') { field += '"'; i += 2; continue; }
+          inQuotes = false; i++; continue;
+        } else { field += c; i++; continue; }
+      } else {
+        if (c === '"') { inQuotes = true; i++; continue; }
+        if (c === ',') { row.push(field); field = ""; i++; continue; }
+        if (c === '\r') { i++; continue; }
+        if (c === '\n') { row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
+        field += c; i++; continue;
+      }
+    }
+    if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+    return rows.filter(function(r){ return r.length > 1 || (r.length === 1 && r[0] !== ""); });
+  }
+
+  function autoDetectMapping(headers) {
+    var mapping = {};
+    var usedIdx = {};
+    FIELD_DEFS.forEach(function(def) {
+      var found = -1;
+      for (var i = 0; i < headers.length; i++) {
+        if (usedIdx[i]) continue;
+        var h = headers[i].toLowerCase().trim();
+        for (var k = 0; k < def.keywords.length; k++) {
+          if (h === def.keywords[k]) { found = i; break; }
+        }
+        if (found >= 0) break;
+      }
+      if (found < 0) {
+        for (var i2 = 0; i2 < headers.length; i2++) {
+          if (usedIdx[i2]) continue;
+          var h2 = headers[i2].toLowerCase().trim();
+          for (var k2 = 0; k2 < def.keywords.length; k2++) {
+            if (h2.indexOf(def.keywords[k2]) !== -1) { found = i2; break; }
+          }
+          if (found >= 0) break;
+        }
+      }
+      if (found >= 0) { mapping[def.key] = found; usedIdx[found] = true; }
+      else { mapping[def.key] = -1; }
+    });
+    return mapping;
+  }
+
+  // ---------- Upload flow ----------
+  var fileInput = document.getElementById("fileInput");
+  var uploadTopBtn = document.getElementById("uploadTopBtn");
+  uploadTopBtn.addEventListener("click", function(){ fileInput.click(); });
+
+  function handleCsvText(text, source) {
+    try {
+      var rows = parseCSV(text);
+      if (rows.length < 2) { showToast("Obsah sa nepodarilo prečítať, alebo je prázdny.", true); return; }
+      var headers = rows[0];
+      var dataRows = rows.slice(1);
+      var mapping = autoDetectMapping(headers);
+      state.pendingRows = dataRows;
+      state.pendingHeaders = headers;
+      state.pendingMapping = mapping;
+      state.pendingSource = source || "manual";
+
+      if (state.pendingSource === "icu" && state.settings.icuMappingConfirmed && state.settings.icuMappingNames) {
+        var remembered = mappingFromNames(headers, state.settings.icuMappingNames);
+        var missing = FIELD_DEFS.filter(function(d){ return d.required && remembered[d.key] === -1; });
+        if (missing.length === 0) {
+          processRows(dataRows, remembered);
+          return;
+        }
+      }
+      openMappingModal(headers, mapping);
+    } catch (err) {
+      showToast("Chyba pri čítaní dát: " + err.message, true);
+    }
+  }
+
+  function mappingFromNames(headers, names) {
+    var mapping = {};
+    FIELD_DEFS.forEach(function(def){
+      var wantedName = names[def.key];
+      var idx = -1;
+      if (wantedName) {
+        for (var i = 0; i < headers.length; i++) {
+          if (headers[i] === wantedName) { idx = i; break; }
+        }
+      }
+      mapping[def.key] = idx;
+    });
+    return mapping;
+  }
+
+  fileInput.addEventListener("change", function(e){
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev){ handleCsvText(ev.target.result); };
+    reader.readAsText(file);
+    fileInput.value = "";
+  });
+
+  var pasteToggle = document.getElementById("pasteToggle");
+  var pasteArea = document.getElementById("pasteArea");
+  pasteToggle.addEventListener("click", function(){
+    pasteArea.classList.toggle("show");
+  });
+  document.getElementById("pasteProcess").addEventListener("click", function(){
+    var txt = document.getElementById("pasteText").value;
+    if (!txt || txt.trim().length === 0) { showToast("Najprv vlož obsah CSV súboru.", true); return; }
+    handleCsvText(txt);
+  });
+
+  function openMappingModal(headers, mapping) {
+    var container = document.getElementById("mapRows");
+    container.innerHTML = "";
+    FIELD_DEFS.forEach(function(def){
+      var row = document.createElement("div");
+      row.className = "map-row";
+      var labelSpan = document.createElement("span");
+      labelSpan.style.width = "38%";
+      labelSpan.textContent = def.label + (def.required ? " *" : "");
+      var select = document.createElement("select");
+      select.dataset.key = def.key;
+      var noneOpt = document.createElement("option");
+      noneOpt.value = "-1";
+      noneOpt.textContent = "— nepoužiť —";
+      select.appendChild(noneOpt);
+      headers.forEach(function(h, idx){
+        var opt = document.createElement("option");
+        opt.value = idx;
+        opt.textContent = h;
+        if (mapping[def.key] === idx) opt.selected = true;
+        select.appendChild(opt);
+      });
+      if (mapping[def.key] === -1) noneOpt.selected = true;
+      row.appendChild(labelSpan);
+      row.appendChild(select);
+      container.appendChild(row);
+    });
+    document.getElementById("mapModal").classList.add("show");
+  }
+
+  document.getElementById("mapCancel").addEventListener("click", function(){
+    document.getElementById("mapModal").classList.remove("show");
+  });
+
+  document.getElementById("mapConfirm").addEventListener("click", function(){
+    var selects = document.querySelectorAll("#mapRows select");
+    var mapping = {};
+    selects.forEach(function(s){ mapping[s.dataset.key] = parseInt(s.value, 10); });
+    var missing = FIELD_DEFS.filter(function(d){ return d.required && mapping[d.key] === -1; });
+    if (missing.length > 0) {
+      showToast("Chýbajú povinné stĺpce: " + missing.map(function(d){return d.label;}).join(", "), true);
+      return;
+    }
+    if (state.pendingSource === "icu") {
+      var names = {};
+      FIELD_DEFS.forEach(function(def){
+        names[def.key] = mapping[def.key] >= 0 ? state.pendingHeaders[mapping[def.key]] : null;
+      });
+      state.settings.icuMappingConfirmed = true;
+      state.settings.icuMappingNames = names;
+      saveSettings();
+    }
+    document.getElementById("mapModal").classList.remove("show");
+    processRows(state.pendingRows, mapping);
+  });
+
+  function numOrNull(v) {
+    if (v === undefined || v === null || v === "") return null;
+    var n = parseFloat(String(v).replace(",", "."));
+    return isNaN(n) ? null : n;
+  }
+
+  function processRows(rows, mapping) {
+    var added = 0, updated = 0, skipped = 0;
+
+    // guess distance unit if auto
+    var distUnit = state.settings.distUnit;
+    if (distUnit === "auto") {
+      var vals = [];
+      rows.forEach(function(r){
+        var v = numOrNull(r[mapping.distance]);
+        if (v !== null && v > 0) vals.push(v);
+      });
+      vals.sort(function(a,b){return a-b;});
+      var median = vals.length ? vals[Math.floor(vals.length/2)] : 0;
+      distUnit = median > 1000 ? "m" : "km";
+    }
+
+    rows.forEach(function(r){
+      var id = mapping.id >= 0 ? String(r[mapping.id]).trim() : "";
+      var rawDate = mapping.date >= 0 ? r[mapping.date] : "";
+      var type = mapping.type >= 0 ? String(r[mapping.type]).trim() : "";
+      if (!id || !rawDate) { skipped++; return; }
+
+      var dateObj = parseStravaDate(rawDate);
+      if (!dateObj) { skipped++; return; }
+
+      var isBike = /ride|cycl|bik|velomobile|handcycle/i.test(type);
+      if (state.settings.onlyBike === "yes" && !isBike) { skipped++; return; }
+
+      var trainerFlag = false;
+      if (/virtual/i.test(type)) trainerFlag = true;
+      if (mapping.trainer >= 0) {
+        var tv = String(r[mapping.trainer]).trim().toLowerCase();
+        if (tv === "true" || tv === "1") trainerFlag = true;
+      }
+
+      var distRaw = mapping.distance >= 0 ? numOrNull(r[mapping.distance]) : null;
+      var distKm = null;
+      if (distRaw !== null) {
+        if (distUnit === "m") distKm = distRaw / 1000;
+        else if (distUnit === "mi") distKm = distRaw * 1.60934;
+        else distKm = distRaw;
+      }
+
+      var elevRaw = mapping.elev >= 0 ? numOrNull(r[mapping.elev]) : null;
+      var elevM = null;
+      if (elevRaw !== null) {
+        elevM = state.settings.elevUnit === "ft" ? elevRaw * 0.3048 : elevRaw;
+      }
+
+      var activity = {
+        id: id,
+        name: mapping.name >= 0 ? r[mapping.name] : "",
+        date: dateObj.toISOString(),
+        year: dateObj.getFullYear(),
+        month: dateObj.getMonth(),
+        type: type,
+        category: trainerFlag ? "trainer" : "outdoor",
+        distanceKm: distKm,
+        movingTimeS: mapping.movingtime >= 0 ? numOrNull(r[mapping.movingtime]) : null,
+        elevationM: elevM,
+        avgHr: mapping.avghr >= 0 ? numOrNull(r[mapping.avghr]) : null,
+        maxHr: mapping.maxhr >= 0 ? numOrNull(r[mapping.maxhr]) : null,
+        avgWatts: mapping.avgwatts >= 0 ? numOrNull(r[mapping.avgwatts]) : null,
+        maxWatts: mapping.maxwatts >= 0 ? numOrNull(r[mapping.maxwatts]) : null,
+        cadence: mapping.cadence >= 0 ? numOrNull(r[mapping.cadence]) : null
+      };
+
+      if (state.activities[id]) updated++; else added++;
+      state.activities[id] = activity;
+    });
+
+    saveActivities();
+    var msg = "Pridaných " + added + ", aktualizovaných " + updated + " aktivít.";
+    if (skipped > 0) msg += " (" + skipped + " riadkov preskočených)";
+    showToast(msg, false);
+    render();
+  }
+
+  function parseStravaDate(raw) {
+    // Strava export format e.g. "Sep 12, 2026, 8:14:32 AM" or ISO-like variants
+    var d = new Date(raw);
+    if (!isNaN(d.getTime())) return d;
+    return null;
+  }
+
+  function showToast(msg, isErr) {
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = "toast show" + (isErr ? " err" : "");
+    clearTimeout(showToast._tm);
+    showToast._tm = setTimeout(function(){ t.classList.remove("show"); }, 6000);
+  }
+
+  // ---------- Settings wiring ----------
+  var distUnitSel = document.getElementById("distUnit");
+  var elevUnitSel = document.getElementById("elevUnit");
+  var onlyBikeSel = document.getElementById("onlyBike");
+  distUnitSel.value = state.settings.distUnit;
+  elevUnitSel.value = state.settings.elevUnit;
+  onlyBikeSel.value = state.settings.onlyBike;
+  [distUnitSel, elevUnitSel, onlyBikeSel].forEach(function(sel){
+    sel.addEventListener("change", function(){
+      state.settings.distUnit = distUnitSel.value;
+      state.settings.elevUnit = elevUnitSel.value;
+      state.settings.onlyBike = onlyBikeSel.value;
+      saveSettings();
+    });
+  });
+
+  // ---------- intervals.icu sync ----------
+  var icuAthleteIdEl = document.getElementById("icuAthleteId");
+  var icuApiKeyEl = document.getElementById("icuApiKey");
+  var icuSyncBtn = document.getElementById("icuSyncBtn");
+  icuAthleteIdEl.value = state.settings.icuAthleteId || "";
+  icuApiKeyEl.value = state.settings.icuApiKey || "";
+
+  function showIcuToast(msg, isErr) {
+    var t = document.getElementById("icuToast");
+    t.textContent = msg;
+    t.className = "toast show" + (isErr ? " err" : "");
+    clearTimeout(showIcuToast._tm);
+    showIcuToast._tm = setTimeout(function(){ t.classList.remove("show"); }, 9000);
+  }
+
+  icuSyncBtn.addEventListener("click", function(){
+    var athleteId = icuAthleteIdEl.value.trim();
+    var apiKey = icuApiKeyEl.value.trim();
+    if (!athleteId || !apiKey) {
+      showIcuToast("Vyplň Athlete ID aj API kľúč.", true);
+      return;
+    }
+    state.settings.icuAthleteId = athleteId;
+    state.settings.icuApiKey = apiKey;
+    saveSettings();
+
+    icuSyncBtn.disabled = true;
+    icuSyncBtn.textContent = "Sťahujem…";
+    var url = "https://intervals.icu/api/v1/athlete/" + encodeURIComponent(athleteId) +
+      "/activities.csv?oldest=2000-01-01T00:00:00&newest=2100-01-01T00:00:00";
+    var authHeader = "Basic " + btoa("API_KEY:" + apiKey);
+
+    fetch(url, { headers: { "Authorization": authHeader } })
+      .then(function(resp){
+        if (!resp.ok) {
+          if (resp.status === 401 || resp.status === 403) {
+            throw new Error("Nesprávne Athlete ID alebo API kľúč (odpoveď " + resp.status + ").");
+          }
+          throw new Error("intervals.icu vrátilo chybu " + resp.status + ".");
+        }
+        return resp.text();
+      })
+      .then(function(text){
+        icuSyncBtn.disabled = false;
+        icuSyncBtn.textContent = "Synchronizovať teraz";
+        handleCsvText(text, "icu");
+        showIcuToast("Synchronizácia dokončená.", false);
+      })
+      .catch(function(err){
+        icuSyncBtn.disabled = false;
+        icuSyncBtn.textContent = "Synchronizovať teraz";
+        var openUrl = "https://intervals.icu/api/v1/athlete/" + encodeURIComponent(athleteId) + "/activities.csv";
+        showIcuToast("Priame sťahovanie zlyhalo (" + err.message + "). Skús otvoriť " + openUrl + " v prehliadači, prihlásiť sa API kľúčom a obsah vložiť cez \"Vlož obsah CSV ručne\" vyššie.", true);
+      });
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", function(){
+    if (confirm("Naozaj vymazať všetky uložené aktivity z tejto appky? Dáta na Strave zostanú nedotknuté.")) {
+      state.activities = {};
+      saveActivities();
+      render();
+      showToast("Dáta vymazané.", false);
+    }
+  });
+
+  // ---------- Filter ----------
+  var catFilter = document.getElementById("catFilter");
+  catFilter.addEventListener("click", function(e){
+    var btn = e.target.closest("button[data-cat]");
+    if (!btn) return;
+    state.filter = btn.dataset.cat;
+    Array.prototype.forEach.call(catFilter.children, function(b){ b.classList.toggle("active", b === btn); });
+    render();
+  });
+
+  // ---------- Rendering ----------
+  function fmt(n, decimals) {
+    if (n === null || n === undefined || isNaN(n)) return "—";
+    return n.toLocaleString("sk-SK", { minimumFractionDigits: decimals || 0, maximumFractionDigits: decimals || 0 });
+  }
+
+  function matchesFilter(a) {
+    if (state.filter === "all") return true;
+    return a.category === state.filter;
+  }
+
+  function render() {
+    var all = Object.values(state.activities);
+    var content = document.getElementById("content");
+    var subtitle = document.getElementById("subtitleLine");
+
+    if (all.length === 0) {
+      subtitle.textContent = "Zatiaľ žiadne dáta";
+      content.innerHTML = '<div class="empty">Zatiaľ tu nič nie je.<br><br>Nahraj <strong>activities.csv</strong> zo svojho Strava exportu nižšie a appka ti spočíta km, prevýšenie, výkon, tep aj kadenciu — rozdelené podľa roka, mesiaca a podľa toho, či si jazdil outdoor alebo indoor.</div>';
+      return;
+    }
+
+    var filtered = all.filter(matchesFilter);
+    subtitle.textContent = all.length + " aktivít uložených";
+
+    // current year totals (for hero) — respects filter
+    var years = {};
+    all.forEach(function(a){
+      if (!years[a.year]) years[a.year] = { outdoor: 0, trainer: 0, activities: [] };
+      years[a.year][a.category === "trainer" ? "trainer" : "outdoor"] += (a.distanceKm || 0);
+      years[a.year].activities.push(a);
+    });
+    var yearKeys = Object.keys(years).map(Number).sort(function(a,b){ return b - a; });
+    var currentYear = yearKeys[0];
+    var cy = years[currentYear] || { outdoor: 0, trainer: 0 };
+    var cyTotal = cy.outdoor + cy.trainer;
+    var oPct = cyTotal > 0 ? (cy.outdoor / cyTotal * 100) : 0;
+    var tPct = cyTotal > 0 ? (cy.trainer / cyTotal * 100) : 0;
+
+    var html = "";
+    html += '<div class="hero">';
+    html += '  <div class="hero-main">';
+    html += '    <div class="label">' + currentYear + ' spolu</div>';
+    html += '    <div class="value mono">' + fmt(cyTotal, 0) + '<span class="unit">km</span></div>';
+    html += '    <div class="split-bar"><div class="o" style="width:' + oPct + '%"></div><div class="t" style="width:' + tPct + '%"></div></div>';
+    html += '    <div class="split-legend"><span><span class="dot o-dot"></span>outdoor ' + fmt(cy.outdoor,0) + ' km</span><span><span class="dot t-dot"></span>indoor ' + fmt(cy.trainer,0) + ' km</span></div>';
+    html += '  </div>';
+    html += statCard("Jázd " + currentYear, fmt((years[currentYear]||{activities:[]}).activities.filter(matchesFilter).length,0), "");
+    html += statCard("Prevýšenie " + currentYear, fmt(sumField((years[currentYear]||{activities:[]}).activities.filter(matchesFilter), "elevationM"), 0), "m");
+    html += '</div>';
+
+    if (state.chartYears === null) state.chartYears = {};
+    yearKeys.forEach(function(y){ if (!(y in state.chartYears)) state.chartYears[y] = true; });
+
+    html += renderChartCard(years, yearKeys);
+
+    yearKeys.forEach(function(y){
+      var yActs = years[y].activities.filter(matchesFilter);
+      if (yActs.length === 0) return;
+      var yDist = sumField(yActs, "distanceKm");
+      html += '<details class="year"' + (y === currentYear ? " open" : "") + '>';
+      html += '  <summary><div><div class="year-name">' + y + '</div><div class="year-total">' + yActs.length + ' jázd</div></div><div style="display:flex;align-items:center;gap:8px;"><div class="year-total mono"><b>' + fmt(yDist,0) + '</b> km</div><span class="chevron">›</span></div></summary>';
+
+      var byMonth = {};
+      yActs.forEach(function(a){
+        if (!byMonth[a.month]) byMonth[a.month] = [];
+        byMonth[a.month].push(a);
+      });
+      var monthKeys = Object.keys(byMonth).map(Number).sort(function(a,b){ return b - a; });
+      var maxMonthKm = 0;
+      monthKeys.forEach(function(m){ maxMonthKm = Math.max(maxMonthKm, sumField(byMonth[m], "distanceKm")); });
+
+      monthKeys.forEach(function(m){
+        var mActs = byMonth[m].slice().sort(function(a,b){ return new Date(b.date) - new Date(a.date); });
+        var mDist = sumField(mActs, "distanceKm");
+        var mOutdoorDist = sumField(mActs.filter(function(a){return a.category==="outdoor";}), "distanceKm");
+        var mTrainerDist = sumField(mActs.filter(function(a){return a.category==="trainer";}), "distanceKm");
+        var barMax = maxMonthKm > 0 ? maxMonthKm : 1;
+        var oW = mOutdoorDist / barMax * 100;
+        var tW = mTrainerDist / barMax * 100;
+        var elev = sumField(mActs, "elevationM");
+        var avgP = avgField(mActs, "avgWatts");
+        var avgHr = avgField(mActs, "avgHr");
+
+        html += '<details class="month-row">';
+        html += '  <summary>';
+        html += '    <div class="month-head"><div class="month-name">' + MONTHS_SK[m] + '<span class="chevron-sm">›</span></div><div class="month-km mono">' + fmt(mDist,0) + '<span class="unit"> km</span></div></div>';
+        html += '    <div class="month-bar"><div class="o" style="width:' + oW + '%"></div><div class="t" style="width:' + tW + '%"></div></div>';
+        html += '    <div class="month-details">';
+        html += '      <div>Jázd<b>' + mActs.length + '</b></div>';
+        html += '      <div>Prevýšenie<b>' + fmt(elev,0) + ' m</b></div>';
+        html += '      <div>Priem. výkon<b>' + (avgP !== null ? fmt(avgP,0) + ' W' : '—') + '</b></div>';
+        html += '      <div>Priem. tep<b>' + (avgHr !== null ? fmt(avgHr,0) : '—') + '</b></div>';
+        html += '    </div>';
+        html += '  </summary>';
+        html += '  <div class="ride-list">';
+        mActs.forEach(function(a){
+          var d = new Date(a.date);
+          var dayLabel = d.getDate() + ". " + MONTHS_SK[a.month].slice(0,3).toLowerCase();
+          var timeLabel = formatDuration(a.movingTimeS);
+          var avgSpeed = (a.movingTimeS && a.distanceKm !== null) ? (a.distanceKm / (a.movingTimeS / 3600)) : null;
+          html += '<a class="ride-row" href="https://www.strava.com/activities/' + escapeAttr(a.id) + '" target="_blank" rel="noopener noreferrer">';
+          html += '  <div class="ride-left"><span class="cat-dot ' + a.category + '"></span><div style="min-width:0;"><div class="ride-name">' + (escapeHtml(a.name) || (a.category === "trainer" ? "Indoor" : "Jazda")) + '</div><div class="ride-date">' + dayLabel + '</div></div></div>';
+          html += '  <div class="ride-stats mono"><b>' + fmt(a.distanceKm,0) + ' km</b><br>' + fmt(a.elevationM,0) + ' m · ' + timeLabel + '<br>' + (avgSpeed !== null ? fmt(avgSpeed,1) + ' km/h' : '—') + (a.avgWatts !== null ? ' · ' + fmt(a.avgWatts,0) + ' W' : '') + (a.cadence !== null ? ' · ' + fmt(a.cadence,0) + ' ot/min' : '') + '</div>';
+          html += '</a>';
+        });
+        html += '  </div>';
+        html += '</details>';
+      });
+
+      html += '</details>';
+    });
+
+    content.innerHTML = html;
+    attachChartListeners();
+  }
+
+  // ---------- Cumulative chart ----------
+  function dayOfYear(d) {
+    var start = new Date(d.getFullYear(), 0, 1);
+    return Math.floor((d - start) / 86400000) + 1;
+  }
+
+  function isLeap(y) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
+
+  function computeCumulative(yearActs, metric) {
+    var arr = new Array(367).fill(0);
+    yearActs.forEach(function(a){
+      if (metric === "outdoor" && a.category !== "outdoor") return;
+      if (metric === "trainer" && a.category !== "trainer") return;
+      var doy = dayOfYear(new Date(a.date));
+      arr[doy] += (a.distanceKm || 0);
+    });
+    var out = new Array(367).fill(0);
+    var running = 0;
+    for (var i = 1; i <= 366; i++) { running += arr[i]; out[i] = running; }
+    return out;
+  }
+
+  function renderChartCard(years, yearKeys) {
+    var sortedAsc = yearKeys.slice().sort(function(a,b){ return a - b; });
+    var colorByYear = {};
+    sortedAsc.forEach(function(y, idx){ colorByYear[y] = YEAR_PALETTE[idx % YEAR_PALETTE.length]; });
+
+    var html = '<div class="chart-card">';
+    html += '<h3>Kumulatívny nájazd km</h3>';
+    html += '<div class="chart-metric" id="chartMetric">';
+    html += '  <button data-m="all"' + (state.chartMetric==="all"?' class="active"':'') + '>Spolu</button>';
+    html += '  <button data-m="outdoor"' + (state.chartMetric==="outdoor"?' class="active"':'') + '>Outdoor</button>';
+    html += '  <button data-m="trainer"' + (state.chartMetric==="trainer"?' class="active"':'') + '>Indoor</button>';
+    html += '</div>';
+    html += '<div class="chart-controls" id="chartYearChips">';
+    yearKeys.forEach(function(y){
+      var active = !!state.chartYears[y];
+      html += '<button class="chip' + (active?' active':'') + '" data-year="' + y + '"><span class="dot" style="background:' + colorByYear[y] + '"></span>' + y + '</button>';
+    });
+    html += '</div>';
+
+    var selectedYears = yearKeys.filter(function(y){ return state.chartYears[y]; });
+    if (selectedYears.length === 0) {
+      html += '<div class="map-note">Vyber aspoň jeden rok na zobrazenie.</div>';
+    } else {
+      html += '<div class="chart-svg-wrap">' + buildCumulativeSvg(years, selectedYears, colorByYear, state.chartMetric) + '</div>';
+      html += '<div class="chart-legend">';
+      selectedYears.forEach(function(y){
+        var cum = computeCumulative(years[y].activities, state.chartMetric);
+        html += '<span><span class="dot" style="background:' + colorByYear[y] + '"></span>' + y + ' — <b>' + fmt(cum[366] || cum[365],0) + ' km</b></span>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function buildCumulativeSvg(years, selectedYears, colorByYear, metric) {
+    var W = 600, H = 260, PADL = 34, PADR = 10, PADT = 10, PADB = 24;
+    var series = {};
+    var maxVal = 0;
+    selectedYears.forEach(function(y){
+      var cum = computeCumulative(years[y].activities, metric);
+      series[y] = cum;
+      var finalVal = cum[366] > 0 ? cum[366] : cum[365];
+      if (finalVal > maxVal) maxVal = finalVal;
+    });
+    if (maxVal === 0) maxVal = 1;
+
+    var plotW = W - PADL - PADR, plotH = H - PADT - PADB;
+    function xFor(day) { return PADL + (day / 365) * plotW; }
+    function yFor(val) { return PADT + plotH - (val / maxVal) * plotH; }
+
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">';
+
+    // gridlines (horizontal, 4 steps)
+    for (var g = 0; g <= 4; g++) {
+      var gv = maxVal * g / 4;
+      var gy = yFor(gv);
+      svg += '<line x1="' + PADL + '" y1="' + gy.toFixed(1) + '" x2="' + (W-PADR) + '" y2="' + gy.toFixed(1) + '" stroke="#2B332D" stroke-width="1" />';
+      svg += '<text x="' + (PADL-6) + '" y="' + (gy+3).toFixed(1) + '" text-anchor="end" font-size="9" fill="#8A968E">' + fmt(gv,0) + '</text>';
+    }
+
+    // month ticks
+    var monthStarts = [1,32,60,91,121,152,182,213,244,274,305,335];
+    var monthLabels = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
+    monthStarts.forEach(function(d, idx){
+      var mx = xFor(d);
+      svg += '<text x="' + mx.toFixed(1) + '" y="' + (H-6) + '" text-anchor="middle" font-size="9" fill="#8A968E">' + monthLabels[idx] + '</text>';
+    });
+
+    selectedYears.forEach(function(y){
+      var cum = series[y];
+      var pts = [];
+      for (var d = 1; d <= 365; d += 2) {
+        pts.push(xFor(d).toFixed(1) + "," + yFor(cum[d]).toFixed(1));
+      }
+      pts.push(xFor(365).toFixed(1) + "," + yFor(cum[365]).toFixed(1));
+      svg += '<polyline points="' + pts.join(" ") + '" fill="none" stroke="' + colorByYear[y] + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />';
+    });
+
+    svg += '</svg>';
+    return svg;
+  }
+
+  function attachChartListeners() {
+    var metricEl = document.getElementById("chartMetric");
+    if (metricEl) {
+      metricEl.addEventListener("click", function(e){
+        var btn = e.target.closest("button[data-m]");
+        if (!btn) return;
+        state.chartMetric = btn.dataset.m;
+        render();
+      });
+    }
+    var chipsEl = document.getElementById("chartYearChips");
+    if (chipsEl) {
+      chipsEl.addEventListener("click", function(e){
+        var btn = e.target.closest("button[data-year]");
+        if (!btn) return;
+        var y = parseInt(btn.dataset.year, 10);
+        state.chartYears[y] = !state.chartYears[y];
+        render();
+      });
+    }
+  }
+
+  function formatDuration(seconds) {
+    if (seconds === null || seconds === undefined) return "—";
+    var h = Math.floor(seconds / 3600);
+    var mnt = Math.round((seconds % 3600) / 60);
+    if (h > 0) return h + "h " + (mnt < 10 ? "0" : "") + mnt + "m";
+    return mnt + "m";
+  }
+  function escapeHtml(s) {
+    if (!s) return "";
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  function escapeAttr(s) { return String(s).replace(/"/g,"&quot;"); }
+
+  function openRideDetail(a) {
+    var d = new Date(a.date);
+    var dateLabel = d.toLocaleDateString("sk-SK", { day: "numeric", month: "long", year: "numeric" });
+    var body = document.getElementById("rideModalBody");
+    var html = "";
+    html += '<h2>' + (escapeHtml(a.name) || (a.category === "trainer" ? "Indoor" : "Jazda")) + '</h2>';
+    html += '<p class="hint">' + dateLabel + '</p>';
+    html += '<span class="detail-badge ' + a.category + '">' + (a.category === "trainer" ? "Indoor" : "Outdoor") + '</span>';
+    html += '<div class="detail-grid">';
+    html += detailCell("Vzdialenosť", fmt(a.distanceKm,1), "km");
+    html += detailCell("Prevýšenie", fmt(a.elevationM,0), "m");
+    html += detailCell("Čas v pohybe", formatDuration(a.movingTimeS), "");
+    html += detailCell("Priemerný výkon", a.avgWatts !== null ? fmt(a.avgWatts,0) : "—", "W");
+    html += detailCell("Max. výkon", a.maxWatts !== null ? fmt(a.maxWatts,0) : "—", "W");
+    html += detailCell("Priemerný tep", a.avgHr !== null ? fmt(a.avgHr,0) : "—", "tep/min");
+    html += detailCell("Max. tep", a.maxHr !== null ? fmt(a.maxHr,0) : "—", "tep/min");
+    html += detailCell("Kadencia", a.cadence !== null ? fmt(a.cadence,0) : "—", "ot/min");
+    html += '</div>';
+
+    if (a.category === "trainer") {
+      html += '<div class="map-note">Indoor jazdy nemajú GPS trasu.</div>';
+    } else if (a.track && a.track.length > 1) {
+      html += '<div class="track-map">' + renderTrackSvg(a.track, a.category) + '</div>';
+      html += '<div class="map-note">Trasa je nakreslená z GPX bodov (bez podkladovej mapy ulíc — appka nemôže sťahovať mapové dlaždice).</div>';
+    } else {
+      html += '<div class="gpx-add">';
+      html += '  <div class="lead">Súhrnný export zo Stravy neobsahuje GPS body. Ak pridáš GPX súbor tejto jazdy, appka z neho nakreslí trasu.</div>';
+      html += '  <label class="gpx-add-btn" for="gpxFileInput">Pridať GPX súbor</label>';
+      html += '  <span class="gpx-paste-toggle" id="gpxPasteToggle">alebo vlož obsah GPX ›</span>';
+      html += '  <input type="file" class="sr-input" id="gpxFileInput" accept=".gpx,.xml,text/xml">';
+      html += '  <div class="gpx-paste-area" id="gpxPasteArea">';
+      html += '    <textarea id="gpxPasteText" placeholder="Otvor .gpx súbor tejto jazdy v textovom editore, skopíruj celý obsah a vlož ho sem."></textarea>';
+      html += '    <button id="gpxPasteProcess">Spracovať GPX</button>';
+      html += '  </div>';
+      html += '</div>';
+    }
+
+    html += '<div class="modal-actions"><button class="btn-secondary" id="rideModalClose" style="flex:1;">Zavrieť</button></div>';
+    body.innerHTML = html;
+    document.getElementById("rideModal").classList.add("show");
+    document.getElementById("rideModalClose").addEventListener("click", function(){
+      document.getElementById("rideModal").classList.remove("show");
+    });
+
+    var gpxInput = document.getElementById("gpxFileInput");
+    if (gpxInput) {
+      gpxInput.addEventListener("change", function(e){
+        var file = e.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function(ev){ applyGpxToRide(a.id, ev.target.result); };
+        reader.readAsText(file);
+      });
+      var toggle = document.getElementById("gpxPasteToggle");
+      var area = document.getElementById("gpxPasteArea");
+      toggle.addEventListener("click", function(){ area.classList.toggle("show"); });
+      document.getElementById("gpxPasteProcess").addEventListener("click", function(){
+        var txt = document.getElementById("gpxPasteText").value;
+        if (!txt || txt.trim().length === 0) { showToast("Najprv vlož obsah GPX súboru.", true); return; }
+        applyGpxToRide(a.id, txt);
+      });
+    }
+  }
+
+  function applyGpxToRide(rideId, gpxText) {
+    try {
+      var points = parseGpxTrack(gpxText);
+      if (points.length < 2) {
+        showToast("V súbore sa nenašli žiadne GPS body.", true);
+        return;
+      }
+      var act = state.activities[rideId];
+      if (!act) return;
+      act.track = downsampleTrack(points, 300);
+      saveActivities();
+      showToast("Trasa pridaná.", false);
+      openRideDetail(act);
+    } catch (err) {
+      showToast("Nepodarilo sa spracovať GPX: " + err.message, true);
+    }
+  }
+
+  function parseGpxTrack(xmlText) {
+    var parser = new DOMParser();
+    var xml = parser.parseFromString(xmlText, "text/xml");
+    var errNode = xml.querySelector && xml.querySelector("parsererror");
+    if (errNode) throw new Error("neplatný GPX/XML formát");
+    var pts = xml.getElementsByTagName("trkpt");
+    var out = [];
+    for (var i = 0; i < pts.length; i++) {
+      var lat = parseFloat(pts[i].getAttribute("lat"));
+      var lon = parseFloat(pts[i].getAttribute("lon"));
+      if (!isNaN(lat) && !isNaN(lon)) out.push([lat, lon]);
+    }
+    return out;
+  }
+
+  function downsampleTrack(points, maxPoints) {
+    if (points.length <= maxPoints) return points.map(function(p){ return [round5(p[0]), round5(p[1])]; });
+    var stride = Math.ceil(points.length / maxPoints);
+    var out = [];
+    for (var i = 0; i < points.length; i += stride) out.push([round5(points[i][0]), round5(points[i][1])]);
+    var last = points[points.length - 1];
+    if (out[out.length - 1][0] !== round5(last[0]) || out[out.length - 1][1] !== round5(last[1])) {
+      out.push([round5(last[0]), round5(last[1])]);
+    }
+    return out;
+  }
+  function round5(n) { return Math.round(n * 100000) / 100000; }
+
+  function renderTrackSvg(track, category) {
+    var W = 560, H = 320, PAD = 20;
+    var lats = track.map(function(p){return p[0];});
+    var lons = track.map(function(p){return p[1];});
+    var minLat = Math.min.apply(null, lats), maxLat = Math.max.apply(null, lats);
+    var minLon = Math.min.apply(null, lons), maxLon = Math.max.apply(null, lons);
+    var midLat = (minLat + maxLat) / 2;
+    var cosLat = Math.cos(midLat * Math.PI / 180);
+    var lonSpan = (maxLon - minLon) * cosLat;
+    var latSpan = (maxLat - minLat);
+    var spanX = lonSpan || 0.0001;
+    var spanY = latSpan || 0.0001;
+    var availW = W - PAD * 2, availH = H - PAD * 2;
+    var scale = Math.min(availW / spanX, availH / spanY);
+    var usedW = spanX * scale, usedH = spanY * scale;
+    var offX = PAD + (availW - usedW) / 2;
+    var offY = PAD + (availH - usedH) / 2;
+
+    function project(p) {
+      var x = offX + (p[1] - minLon) * cosLat * scale;
+      var y = offY + (maxLat - p[0]) * scale;
+      return [x.toFixed(1), y.toFixed(1)];
+    }
+
+    var pointsStr = track.map(function(p){ var xy = project(p); return xy[0] + "," + xy[1]; }).join(" ");
+    var startXY = project(track[0]);
+    var endXY = project(track[track.length - 1]);
+    var color = category === "trainer" ? "#E8A33D" : "#9FE870";
+
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg">';
+    svg += '<polyline points="' + pointsStr + '" fill="none" stroke="' + color + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />';
+    svg += '<circle cx="' + startXY[0] + '" cy="' + startXY[1] + '" r="5" fill="' + color + '" />';
+    svg += '<rect x="' + (parseFloat(endXY[0]) - 4) + '" y="' + (parseFloat(endXY[1]) - 4) + '" width="8" height="8" fill="#DEE7E0" />';
+    svg += '</svg>';
+    return svg;
+  }
+
+  function detailCell(label, value, unit) {
+    return '<div class="detail-cell"><div class="label">' + label + '</div><div class="value mono">' + value + (unit ? '<span class="unit"> ' + unit + '</span>' : '') + '</div></div>';
+  }
+
+  document.getElementById("rideModal").addEventListener("click", function(e){
+    if (e.target === this) this.classList.remove("show");
+  });
+
+  function statCard(label, value, unit) {
+    return '<div class="stat-card"><div class="label">' + label + '</div><div class="value mono">' + value + (unit ? '<span class="unit"> ' + unit + '</span>' : '') + '</div></div>';
+  }
+
+  function sumField(arr, field) {
+    var s = 0;
+    arr.forEach(function(a){ if (a[field] !== null && a[field] !== undefined) s += a[field]; });
+    return s;
+  }
+  function avgField(arr, field) {
+    var vals = arr.map(function(a){return a[field];}).filter(function(v){ return v !== null && v !== undefined; });
+    if (vals.length === 0) return null;
+    return vals.reduce(function(a,b){return a+b;},0) / vals.length;
+  }
+
+  render();
+})();
+</script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+</script>
+</body>
+</html>
