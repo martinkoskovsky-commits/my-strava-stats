@@ -193,18 +193,7 @@
   .upload-zone .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .upload-zone .txt { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
   .upload-zone .txt strong { color: var(--text); }
-  .icu-fields { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
-  .icu-field label { display: block; font-size: 11.5px; color: var(--text-dim); margin-bottom: 3px; }
-  .icu-field input {
-    width: 100%;
-    background: var(--surface-2);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    color: var(--text);
-    font-size: 13px;
-    padding: 8px 10px;
-    font-family: inherit;
-  }
+  .last-sync-label { margin-top: 8px; font-size: 11.5px; color: var(--text-dim); }
   input[type="file"].sr-input {
     position: absolute;
     width: 1px; height: 1px;
@@ -624,33 +613,16 @@
       <label class="upload-btn" for="fileInput">Nahrať</label>
     </div>
     <input type="file" class="sr-input" id="fileInput" accept=".csv,text/csv">
+    <div style="margin-top:10px;">
+      <a class="gpx-add-btn" href="https://www.strava.com/athlete/delete_your_account" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">Otvoriť stránku exportu na Strave ↗</a>
+      <div id="lastSyncLabel" class="last-sync-label"></div>
+    </div>
     <span class="paste-toggle" id="pasteToggle">Nefunguje nahrávanie? Vlož obsah CSV ručne ›</span>
     <div class="paste-area" id="pasteArea">
       <textarea id="pasteText" placeholder="Otvor activities.csv v poznámkovom bloku alebo Súboroch, skopíruj celý obsah a vlož ho sem."></textarea>
       <button id="pasteProcess">Spracovať vložený text</button>
     </div>
     <div class="toast" id="toast"></div>
-  </div>
-
-  <div class="upload-zone" id="icuCard">
-    <div class="row">
-      <div class="txt">
-        <strong>Automatická synchronizácia (intervals.icu).</strong><br>
-        Zadarmo, bez Strava predplatného. Pripoj si Strava/Zwift/Garmin ku intervals.icu účtu, zadaj sem svoje údaje a appka si vie sama dotiahnuť nové jazdy.
-      </div>
-    </div>
-    <div class="icu-fields">
-      <div class="icu-field">
-        <label>Athlete ID</label>
-        <input type="text" id="icuAthleteId" placeholder="napr. i123456">
-      </div>
-      <div class="icu-field">
-        <label>API kľúč</label>
-        <input type="password" id="icuApiKey" placeholder="z intervals.icu → Settings → Developer Settings">
-      </div>
-    </div>
-    <button class="upload-btn" id="icuSyncBtn" style="margin-top:10px;">Synchronizovať teraz</button>
-    <div class="toast" id="icuToast"></div>
   </div>
 
   <details class="settings">
@@ -733,7 +705,6 @@
     pendingRows: null,
     pendingHeaders: null,
     pendingMapping: null,
-    pendingSource: "manual",
     chartMetric: "all",
     chartYears: null
   };
@@ -750,7 +721,7 @@
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.activities)); } catch (e) {}
   }
   function loadSettings() {
-    var defaults = { distUnit: "auto", elevUnit: "m", onlyBike: "yes", icuAthleteId: "", icuApiKey: "", icuMappingConfirmed: false, icuMappingNames: null };
+    var defaults = { distUnit: "auto", elevUnit: "m", onlyBike: "yes" };
     try {
       var raw = localStorage.getItem(SETTINGS_KEY);
       var parsed = raw ? JSON.parse(raw) : {};
@@ -833,35 +804,10 @@
       state.pendingRows = dataRows;
       state.pendingHeaders = headers;
       state.pendingMapping = mapping;
-      state.pendingSource = source || "manual";
-
-      if (state.pendingSource === "icu" && state.settings.icuMappingConfirmed && state.settings.icuMappingNames) {
-        var remembered = mappingFromNames(headers, state.settings.icuMappingNames);
-        var missing = FIELD_DEFS.filter(function(d){ return d.required && remembered[d.key] === -1; });
-        if (missing.length === 0) {
-          processRows(dataRows, remembered);
-          return;
-        }
-      }
       openMappingModal(headers, mapping);
     } catch (err) {
       showToast("Chyba pri čítaní dát: " + err.message, true);
     }
-  }
-
-  function mappingFromNames(headers, names) {
-    var mapping = {};
-    FIELD_DEFS.forEach(function(def){
-      var wantedName = names[def.key];
-      var idx = -1;
-      if (wantedName) {
-        for (var i = 0; i < headers.length; i++) {
-          if (headers[i] === wantedName) { idx = i; break; }
-        }
-      }
-      mapping[def.key] = idx;
-    });
-    return mapping;
   }
 
   fileInput.addEventListener("change", function(e){
@@ -926,15 +872,6 @@
     if (missing.length > 0) {
       showToast("Chýbajú povinné stĺpce: " + missing.map(function(d){return d.label;}).join(", "), true);
       return;
-    }
-    if (state.pendingSource === "icu") {
-      var names = {};
-      FIELD_DEFS.forEach(function(def){
-        names[def.key] = mapping[def.key] >= 0 ? state.pendingHeaders[mapping[def.key]] : null;
-      });
-      state.settings.icuMappingConfirmed = true;
-      state.settings.icuMappingNames = names;
-      saveSettings();
     }
     document.getElementById("mapModal").classList.remove("show");
     processRows(state.pendingRows, mapping);
@@ -1018,6 +955,7 @@
     });
 
     saveActivities();
+    markLastSync();
     var msg = "Pridaných " + added + ", aktualizovaných " + updated + " aktivít.";
     if (skipped > 0) msg += " (" + skipped + " riadkov preskočených)";
     showToast(msg, false);
@@ -1055,61 +993,24 @@
     });
   });
 
-  // ---------- intervals.icu sync ----------
-  var icuAthleteIdEl = document.getElementById("icuAthleteId");
-  var icuApiKeyEl = document.getElementById("icuApiKey");
-  var icuSyncBtn = document.getElementById("icuSyncBtn");
-  icuAthleteIdEl.value = state.settings.icuAthleteId || "";
-  icuApiKeyEl.value = state.settings.icuApiKey || "";
-
-  function showIcuToast(msg, isErr) {
-    var t = document.getElementById("icuToast");
-    t.textContent = msg;
-    t.className = "toast show" + (isErr ? " err" : "");
-    clearTimeout(showIcuToast._tm);
-    showIcuToast._tm = setTimeout(function(){ t.classList.remove("show"); }, 9000);
+  // ---------- Last sync label ----------
+  var LAST_SYNC_KEY = "cycling_dashboard_last_sync_v1";
+  function markLastSync() {
+    try { localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString()); } catch (e) {}
+    refreshLastSyncLabel();
   }
-
-  icuSyncBtn.addEventListener("click", function(){
-    var athleteId = icuAthleteIdEl.value.trim();
-    var apiKey = icuApiKeyEl.value.trim();
-    if (!athleteId || !apiKey) {
-      showIcuToast("Vyplň Athlete ID aj API kľúč.", true);
-      return;
-    }
-    state.settings.icuAthleteId = athleteId;
-    state.settings.icuApiKey = apiKey;
-    saveSettings();
-
-    icuSyncBtn.disabled = true;
-    icuSyncBtn.textContent = "Sťahujem…";
-    var url = "https://intervals.icu/api/v1/athlete/" + encodeURIComponent(athleteId) +
-      "/activities.csv?oldest=2000-01-01T00:00:00&newest=2100-01-01T00:00:00";
-    var authHeader = "Basic " + btoa("API_KEY:" + apiKey);
-
-    fetch(url, { headers: { "Authorization": authHeader } })
-      .then(function(resp){
-        if (!resp.ok) {
-          if (resp.status === 401 || resp.status === 403) {
-            throw new Error("Nesprávne Athlete ID alebo API kľúč (odpoveď " + resp.status + ").");
-          }
-          throw new Error("intervals.icu vrátilo chybu " + resp.status + ".");
-        }
-        return resp.text();
-      })
-      .then(function(text){
-        icuSyncBtn.disabled = false;
-        icuSyncBtn.textContent = "Synchronizovať teraz";
-        handleCsvText(text, "icu");
-        showIcuToast("Synchronizácia dokončená.", false);
-      })
-      .catch(function(err){
-        icuSyncBtn.disabled = false;
-        icuSyncBtn.textContent = "Synchronizovať teraz";
-        var openUrl = "https://intervals.icu/api/v1/athlete/" + encodeURIComponent(athleteId) + "/activities.csv";
-        showIcuToast("Priame sťahovanie zlyhalo (" + err.message + "). Skús otvoriť " + openUrl + " v prehliadači, prihlásiť sa API kľúčom a obsah vložiť cez \"Vlož obsah CSV ručne\" vyššie.", true);
-      });
-  });
+  function refreshLastSyncLabel() {
+    var el = document.getElementById("lastSyncLabel");
+    if (!el) return;
+    var raw = null;
+    try { raw = localStorage.getItem(LAST_SYNC_KEY); } catch (e) {}
+    if (!raw) { el.textContent = "Zatiaľ žiadna aktualizácia"; return; }
+    var d = new Date(raw);
+    var label = d.toLocaleDateString("sk-SK", { day: "numeric", month: "long", year: "numeric" }) +
+      " o " + d.toLocaleTimeString("sk-SK", { hour: "2-digit", minute: "2-digit" });
+    el.textContent = "Posledná aktualizácia: " + label;
+  }
+  refreshLastSyncLabel();
 
   document.getElementById("resetBtn").addEventListener("click", function(){
     if (confirm("Naozaj vymazať všetky uložené aktivity z tejto appky? Dáta na Strave zostanú nedotknuté.")) {
