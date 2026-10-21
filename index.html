@@ -324,23 +324,72 @@
   .ride-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     padding: 9px 0;
     border-top: 1px solid var(--line);
-    cursor: pointer;
-    gap: 10px;
+    gap: 8px;
   }
-  .ride-row { text-decoration: none; color: inherit; }
-  .ride-row:active { background: var(--surface-2); }
+  .ride-row .ride-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    text-decoration: none;
+    color: inherit;
+  }
   .ride-row .ride-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .ride-row .cat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
   .ride-row .cat-dot.outdoor { background: var(--outdoor); }
   .ride-row .cat-dot.trainer { background: var(--trainer); }
   .ride-row .ride-name { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ride-row .ai-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--outdoor); margin-left: 4px; vertical-align: middle; }
   .ride-row .ride-date { font-size: 11px; color: var(--text-dim); }
   .ride-row .ride-stats { font-size: 11.5px; color: var(--text-dim); text-align: right; flex-shrink: 0; }
   .ride-row .ride-stats b { color: var(--text); font-weight: 600; }
-  .ride-row .arrow { color: var(--text-dim); font-size: 13px; flex-shrink: 0; }
+  .ride-more-btn {
+    flex-shrink: 0;
+    width: 30px; height: 30px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .ai-section {
+    margin-top: 14px;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+  }
+  .ai-section .lead { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; }
+  .ai-section textarea {
+    width: 100%;
+    min-height: 100px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 12.5px;
+    padding: 8px;
+    resize: vertical;
+    font-family: inherit;
+  }
+  .ai-section .ai-btn-row { display: flex; gap: 8px; margin-top: 8px; }
+  .ai-section .ai-btn-row button {
+    flex: 1;
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .ai-section .ai-btn-row button.primary { background: var(--outdoor); color: #0F1412; border: none; }
 
   .detail-grid {
     display: grid;
@@ -651,6 +700,10 @@
           <option value="no">Áno, všetko</option>
         </select>
       </div>
+      <div class="setting-row" style="display:block;">
+        <span style="display:block; margin-bottom:6px;">Tréningový cieľ (pre AI vyhodnotenie jázd)</span>
+        <textarea id="trainingGoal" rows="2" placeholder="napr. príprava na horský maratón v júli, zlepšiť FTP, schudnúť" style="width:100%; background:var(--surface-2); border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:12.5px; padding:8px; font-family:inherit; resize:vertical;"></textarea>
+      </div>
       <button class="danger-btn" id="resetBtn">Vymazať všetky uložené dáta</button>
     </div>
   </details>
@@ -721,7 +774,7 @@
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.activities)); } catch (e) {}
   }
   function loadSettings() {
-    var defaults = { distUnit: "auto", elevUnit: "m", onlyBike: "yes" };
+    var defaults = { distUnit: "auto", elevUnit: "m", onlyBike: "yes", trainingGoal: "" };
     try {
       var raw = localStorage.getItem(SETTINGS_KEY);
       var parsed = raw ? JSON.parse(raw) : {};
@@ -993,6 +1046,13 @@
     });
   });
 
+  var trainingGoalEl = document.getElementById("trainingGoal");
+  trainingGoalEl.value = state.settings.trainingGoal || "";
+  trainingGoalEl.addEventListener("change", function(){
+    state.settings.trainingGoal = trainingGoalEl.value;
+    saveSettings();
+  });
+
   // ---------- Last sync label ----------
   var LAST_SYNC_KEY = "cycling_dashboard_last_sync_v1";
   function markLastSync() {
@@ -1132,10 +1192,13 @@
           var dayLabel = d.getDate() + ". " + MONTHS_SK[a.month].slice(0,3).toLowerCase();
           var timeLabel = formatDuration(a.movingTimeS);
           var avgSpeed = (a.movingTimeS && a.distanceKm !== null) ? (a.distanceKm / (a.movingTimeS / 3600)) : null;
-          html += '<a class="ride-row" href="https://www.strava.com/activities/' + escapeAttr(a.id) + '" target="_blank" rel="noopener noreferrer">';
-          html += '  <div class="ride-left"><span class="cat-dot ' + a.category + '"></span><div style="min-width:0;"><div class="ride-name">' + (escapeHtml(a.name) || (a.category === "trainer" ? "Indoor" : "Jazda")) + '</div><div class="ride-date">' + dayLabel + '</div></div></div>';
-          html += '  <div class="ride-stats mono"><b>' + fmt(a.distanceKm,0) + ' km</b><br>' + fmt(a.elevationM,0) + ' m · ' + timeLabel + '<br>' + (avgSpeed !== null ? fmt(avgSpeed,1) + ' km/h' : '—') + (a.avgWatts !== null ? ' · ' + fmt(a.avgWatts,0) + ' W' : '') + (a.cadence !== null ? ' · ' + fmt(a.cadence,0) + ' ot/min' : '') + '</div>';
-          html += '</a>';
+          html += '<div class="ride-row">';
+          html += '  <a class="ride-main" href="https://www.strava.com/activities/' + escapeAttr(a.id) + '" target="_blank" rel="noopener noreferrer">';
+          html += '    <div class="ride-left"><span class="cat-dot ' + a.category + '"></span><div style="min-width:0;"><div class="ride-name">' + (escapeHtml(a.name) || (a.category === "trainer" ? "Indoor" : "Jazda")) + (a.aiNote ? ' <span class="ai-dot" title="Má AI vyhodnotenie"></span>' : '') + '</div><div class="ride-date">' + dayLabel + '</div></div></div>';
+          html += '    <div class="ride-stats mono"><b>' + fmt(a.distanceKm,0) + ' km</b><br>' + fmt(a.elevationM,0) + ' m · ' + timeLabel + '<br>' + (avgSpeed !== null ? fmt(avgSpeed,1) + ' km/h' : '—') + (a.avgWatts !== null ? ' · ' + fmt(a.avgWatts,0) + ' W' : '') + (a.cadence !== null ? ' · ' + fmt(a.cadence,0) + ' ot/min' : '') + '</div>';
+          html += '  </a>';
+          html += '  <button class="ride-more-btn" data-ride-id="' + escapeAttr(a.id) + '" title="Detail a AI vyhodnotenie">⋯</button>';
+          html += '</div>';
         });
         html += '  </div>';
         html += '</details>';
@@ -1288,6 +1351,57 @@
   }
   function escapeAttr(s) { return String(s).replace(/"/g,"&quot;"); }
 
+  function buildAiPrompt(a) {
+    var d = new Date(a.date);
+    var dateLabel = d.toLocaleDateString("sk-SK", { day: "numeric", month: "long", year: "numeric" });
+    var avgSpeed = (a.movingTimeS && a.distanceKm !== null) ? (a.distanceKm / (a.movingTimeS / 3600)) : null;
+    var goal = (state.settings.trainingGoal || "").trim();
+    var lines = [];
+    lines.push("Zhodnoť túto cyklistickú jazdu v kontexte môjho tréningového cieľa. Buď stručný, konkrétny a priateľský, pokojne uveď aj odporúčanie na ďalší tréning.");
+    lines.push("");
+    lines.push("Môj cieľ: " + (goal || "(nezadaný — zhodnoť jazdu všeobecne)"));
+    lines.push("");
+    lines.push("Jazda: " + (a.name || (a.category === "trainer" ? "Indoor jazda" : "Jazda")) + " — " + dateLabel);
+    lines.push("Typ: " + (a.category === "trainer" ? "Indoor (trenažér)" : "Outdoor"));
+    lines.push("Vzdialenosť: " + (a.distanceKm !== null ? fmt(a.distanceKm,1) + " km" : "—"));
+    lines.push("Prevýšenie: " + (a.elevationM !== null ? fmt(a.elevationM,0) + " m" : "—"));
+    lines.push("Čas v pohybe: " + formatDuration(a.movingTimeS));
+    lines.push("Priemerná rýchlosť: " + (avgSpeed !== null ? fmt(avgSpeed,1) + " km/h" : "—"));
+    lines.push("Priemerný výkon: " + (a.avgWatts !== null ? fmt(a.avgWatts,0) + " W" : "—") + (a.maxWatts !== null ? " (max " + fmt(a.maxWatts,0) + " W)" : ""));
+    lines.push("Priemerný tep: " + (a.avgHr !== null ? fmt(a.avgHr,0) : "—") + (a.maxHr !== null ? " (max " + fmt(a.maxHr,0) + ")" : ""));
+    lines.push("Priemerná kadencia: " + (a.cadence !== null ? fmt(a.cadence,0) + " ot/min" : "—"));
+    return lines.join("\n");
+  }
+
+  function copyToClipboard(text, cb) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function(){ cb(true); }).catch(function(){ cb(fallbackCopy(text)); });
+    } else {
+      cb(fallbackCopy(text));
+    }
+  }
+  function fallbackCopy(text) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) { return false; }
+  }
+
+  document.getElementById("content").addEventListener("click", function(e){
+    var btn = e.target.closest(".ride-more-btn");
+    if (!btn) return;
+    var a = state.activities[btn.dataset.rideId];
+    if (a) openRideDetail(a);
+  });
+
   function openRideDetail(a) {
     var d = new Date(a.date);
     var dateLabel = d.toLocaleDateString("sk-SK", { day: "numeric", month: "long", year: "numeric" });
@@ -1325,11 +1439,36 @@
       html += '</div>';
     }
 
+    html += '<div class="ai-section">';
+    html += '  <div class="lead">Appka nevie sama volať AI – skopíruje ti hotový prompt s údajmi jazdy a tvojím cieľom, ty ho vložíš do Claude (alebo iného AI chatu) a odpoveď sem vložíš späť, appka si ju uloží k tejto jazde.</div>';
+    html += '  <textarea id="aiNoteText" placeholder="Sem vlož odpoveď od AI, alebo si napíš vlastné zhodnotenie.">' + escapeHtml(a.aiNote || "") + '</textarea>';
+    html += '  <div class="ai-btn-row">';
+    html += '    <button id="aiCopyPrompt">Skopírovať prompt pre AI</button>';
+    html += '    <button class="primary" id="aiSaveNote">Uložiť</button>';
+    html += '  </div>';
+    html += '</div>';
+
     html += '<div class="modal-actions"><button class="btn-secondary" id="rideModalClose" style="flex:1;">Zavrieť</button></div>';
     body.innerHTML = html;
     document.getElementById("rideModal").classList.add("show");
     document.getElementById("rideModalClose").addEventListener("click", function(){
       document.getElementById("rideModal").classList.remove("show");
+    });
+
+    document.getElementById("aiCopyPrompt").addEventListener("click", function(){
+      var prompt = buildAiPrompt(a);
+      copyToClipboard(prompt, function(ok){
+        showToast(ok ? "Prompt skopírovaný – vlož ho do AI chatu." : "Kopírovanie zlyhalo, over to v inom prehliadači.", !ok);
+      });
+    });
+    document.getElementById("aiSaveNote").addEventListener("click", function(){
+      var txt = document.getElementById("aiNoteText").value;
+      var act = state.activities[a.id];
+      if (!act) return;
+      act.aiNote = txt;
+      saveActivities();
+      showToast("Vyhodnotenie uložené.", false);
+      render();
     });
 
     var gpxInput = document.getElementById("gpxFileInput");
